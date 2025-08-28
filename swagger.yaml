@@ -1,0 +1,113 @@
+openapi: 3.0.3
+info:
+  title: API Tra cứu điểm học sinh
+  description: API công khai để tra cứu điểm học sinh dựa trên ID học sinh, năm học và học kỳ.
+  version: 1.0.0
+servers:
+  - url: http://your-domain.com
+    description: Máy chủ chính
+paths:
+  /api/grades/{student_id}/{school_year}/{semester}:
+    get:
+      summary: Tra cứu điểm của học sinh
+      description: Trả về thông tin học sinh và điểm các môn học dựa trên ID học sinh, năm học và học kỳ.
+      parameters:
+        - in: path
+          name: student_id
+          required: true
+          schema:
+            type: integer
+          description: ID của học sinh
+        - in: path
+          name: school_year
+          required: true
+          schema:
+            type: string
+            pattern: '^\d{4}-\d{4}$'
+          description: Năm học (VD: 2024-2025)
+        - in: path
+          name: semester
+          required: true
+          schema:
+            type: integer
+            enum: [1, 2]
+          description: Học kỳ (1 hoặc 2)
+      responses:
+        '200':
+          description: Thành công, trả về thông tin học sinh và điểm
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  student:
+                    type: object
+                    properties:
+                      id:
+                        type: integer
+                      name:
+                        type: string
+                      class:
+                        type: string
+                      birthdate:
+                        type: string
+                        format: date
+                      gender:
+                        type: string
+                  grades:
+                    type: object
+                    properties:
+                      school_year:
+                        type: string
+                      semester:
+                        type: integer
+                      scores:
+                        type: object
+                        properties:
+                          math:
+                            type: number
+                          literature:
+                            type: number
+                          english:
+                            type: number
+                          physics:
+                            type: number
+                          chemistry:
+                            type: number
+                          biology:
+                            type: number
+                          history:
+                            type: number
+                          geography:
+                            type: number
+                          civic_education:
+                            type: number
+                          technology:
+                            type: number
+        '400':
+          description: Dữ liệu đầu vào không hợp lệ
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+        '404':
+          description: Không tìm thấy dữ liệu
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+        '500':
+          description: Lỗi máy chủ
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
