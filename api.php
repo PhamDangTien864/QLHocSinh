@@ -216,7 +216,7 @@ switch ($resource[0] ?? '') {
     default:
         sendResponse(404, 'Endpoint không tồn tại');
         break;
-}
+
     case 'grades':
     if (count($resource) === 4) {
         $student_id = (int)$resource[1];
@@ -278,6 +278,7 @@ switch ($resource[0] ?? '') {
         sendResponse(400, 'Invalid endpoint format');
     }
     break;
+}
 
 $conn->close();
 ?>
