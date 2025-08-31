@@ -185,7 +185,7 @@ API RESTful công khai để tra cứu điểm học sinh dựa trên ID học s
             }
          ]
       } 
-      
+
 - **POST** `/api/diem` 
   - **Mô tả**: Thêm điểm mới cho học sinh.
   - **Body(JSON)**:
@@ -260,10 +260,10 @@ API RESTful công khai để tra cứu điểm học sinh dựa trên ID học s
       - Ví dụ: Gửi GET tới http://localhost/api/grades/8/2023/1.
 
  ## Giao diện Web
-      - Truy cập index.php để vào trang chủ.
-      - Quản lý học sinh: hocsinh.php (thêm, sửa, xóa, tra cứu).
-      - Tra cứu điểm: tracuu.php.
-      - Quản lý điểm: bangdiem.php và them_diem.php.
+   - Truy cập index.php để vào trang chủ. 
+   - Quản lý học sinh: hocsinh.php (thêm, sửa, xóa, tra cứu).
+   - Tra cứu điểm: tracuu.php.
+   - Quản lý điểm: bangdiem.php và them_diem.php.
 
  ## License
    - MIT License. Xem chi tiết trong file LICENSE.
