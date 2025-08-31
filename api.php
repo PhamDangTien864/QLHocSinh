@@ -7,7 +7,7 @@ error_reporting(E_ALL);
 // Bao gồm tệp kết nối cơ sở dữ liệu
 include 'db.php';
 
-// Thiết lập tiêu đề (header) để trả về JSON
+// Thiết lập tiêu đề để trả về JSON
 header('Content-Type: application/json');
 
 // Lấy phương thức HTTP và các phần của URI
@@ -28,6 +28,12 @@ function sendResponse($status, $message, $data = null) {
     }
     echo json_encode($response, JSON_PRETTY_PRINT);
     exit();
+}
+
+// Kết nối đến database
+$conn = new mysqli($servername, $username, $password, $dbname);
+if ($conn->connect_error) {
+    sendResponse(500, "Kết nối database thất bại: " . $conn->connect_error);
 }
 
 // Xử lý các endpoint API
@@ -58,27 +64,35 @@ switch ($resource[0] ?? '') {
                     sendResponse(200, 'Lấy danh sách học sinh thành công', $data);
                 }
                 break;
+
             case 'POST':
                 $input = json_decode(file_get_contents('php://input'), true);
-                $ten = $input['ten'] ?? '';
+                if (!isset($input['ten']) || empty(trim($input['ten']))) {
+                    sendResponse(400, 'Tên học sinh là bắt buộc');
+                }
+                $ten = trim($input['ten']);
                 $ngaysinh = $input['ngaysinh'] ?? null;
                 $gioitinh = $input['gioitinh'] ?? null;
                 $lop = $input['lop'] ?? null;
-                $stmt = $conn->prepare("INSERT INTO hocsinh(ten, ngaysinh, gioitinh, lop) VALUES(?, ?, ?, ?)");
+                $stmt = $conn->prepare("INSERT INTO hocsinh (ten, ngaysinh, gioitinh, lop) VALUES (?, ?, ?, ?)");
                 $stmt->bind_param("ssss", $ten, $ngaysinh, $gioitinh, $lop);
                 if ($stmt->execute()) {
                     sendResponse(201, 'Thêm học sinh thành công', ['id' => $conn->insert_id]);
                 } else {
-                    sendResponse(500, 'Lỗi khi thêm học sinh', ['error' => $stmt->error]);
+                    sendResponse(500, 'Lỗi khi thêm học sinh', ['error' => $conn->error]);
                 }
                 $stmt->close();
                 break;
+
             case 'PUT':
                 if (!$id) {
                     sendResponse(400, 'Thiếu ID học sinh');
                 }
                 $input = json_decode(file_get_contents('php://input'), true);
-                $ten = $input['ten'] ?? '';
+                if (!isset($input['ten']) || empty(trim($input['ten']))) {
+                    sendResponse(400, 'Tên học sinh là bắt buộc');
+                }
+                $ten = trim($input['ten']);
                 $ngaysinh = $input['ngaysinh'] ?? null;
                 $gioitinh = $input['gioitinh'] ?? null;
                 $lop = $input['lop'] ?? null;
@@ -87,10 +101,11 @@ switch ($resource[0] ?? '') {
                 if ($stmt->execute()) {
                     sendResponse(200, 'Cập nhật học sinh thành công');
                 } else {
-                    sendResponse(500, 'Lỗi khi cập nhật học sinh', ['error' => $stmt->error]);
+                    sendResponse(500, 'Lỗi khi cập nhật học sinh', ['error' => $conn->error]);
                 }
                 $stmt->close();
                 break;
+
             case 'DELETE':
                 if (!$id) {
                     sendResponse(400, 'Thiếu ID học sinh');
@@ -100,10 +115,11 @@ switch ($resource[0] ?? '') {
                 if ($stmt->execute()) {
                     sendResponse(200, 'Xóa học sinh thành công');
                 } else {
-                    sendResponse(500, 'Lỗi khi xóa học sinh', ['error' => $stmt->error]);
+                    sendResponse(500, 'Lỗi khi xóa học sinh', ['error' => $conn->error]);
                 }
                 $stmt->close();
                 break;
+
             default:
                 sendResponse(405, 'Phương thức không được phép');
         }
@@ -114,33 +130,10 @@ switch ($resource[0] ?? '') {
         if ($id !== null) {
             $id = (int)$id;
         }
-        
-        // Check for specific grade lookup
-        if (isset($_GET['namhoc']) && isset($_GET['hocky'])) {
-            $namhoc = trim($_GET['namhoc']);
-            $hocky = (int)$_GET['hocky'];
-            if ($id > 0 && $namhoc !== '' && $hocky > 0) {
-                $sql = "SELECT d.*, h.ten, h.lop FROM diem d JOIN hocsinh h ON d.id_hocsinh = h.id WHERE d.id_hocsinh = ? AND d.namhoc = ? AND d.hocky = ?";
-                $stmt = $conn->prepare($sql);
-                $stmt->bind_param("isi", $id, $namhoc, $hocky);
-                $stmt->execute();
-                $result = $stmt->get_result();
-                $data = $result->fetch_assoc();
-                $stmt->close();
-                if ($data) {
-                    sendResponse(200, 'Lấy điểm thành công', $data);
-                } else {
-                    sendResponse(404, 'Không tìm thấy điểm phù hợp');
-                }
-            } else {
-                 sendResponse(400, 'Vui lòng cung cấp đầy đủ ID học sinh, năm học và học kỳ.');
-            }
-        } else {
-            switch ($method) {
-                case 'GET':
-                    if (!$id) {
-                        sendResponse(400, 'Thiếu ID học sinh');
-                    }
+
+        switch ($method) {
+            case 'GET':
+                if ($id) {
                     $stmt = $conn->prepare("SELECT * FROM diem WHERE id_hocsinh = ?");
                     $stmt->bind_param("i", $id);
                     $stmt->execute();
@@ -152,132 +145,152 @@ switch ($resource[0] ?? '') {
                     } else {
                         sendResponse(404, 'Không tìm thấy điểm cho học sinh này');
                     }
-                    break;
-                case 'POST':
-                    $input = json_decode(file_get_contents('php://input'), true);
-                    $id_hocsinh = $input['id_hocsinh'] ?? 0;
-                    $namhoc = $input['namhoc'] ?? null;
-                    $hocky = $input['hocky'] ?? null;
-                    $toan = $input['toan'] ?? null;
-                    $van = $input['van'] ?? null;
-                    // ... các môn khác
-                    
-                    $sql = "INSERT INTO diem(id_hocsinh, namhoc, hocky, toan, van, anh, ly, hoa, sinh, su, dia, gdcd, cn) 
-                            VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
-                    $stmt = $conn->prepare($sql);
-                    $stmt->bind_param("isidddddddddd", $id_hocsinh, $namhoc, $hocky, $toan, $van, $input['anh'], $input['ly'], $input['hoa'], $input['sinh'], $input['su'], $input['dia'], $input['gdcd'], $input['cn']);
+                } else {
+                    sendResponse(400, 'Thiếu ID học sinh');
+                }
+                break;
 
-                    if ($stmt->execute()) {
-                        sendResponse(201, 'Thêm điểm thành công', ['id' => $conn->insert_id]);
-                    } else {
-                        sendResponse(500, 'Lỗi khi thêm điểm', ['error' => $stmt->error]);
-                    }
-                    $stmt->close();
-                    break;
-                case 'PUT':
-                    if (!$id) {
-                        sendResponse(400, 'Thiếu ID điểm');
-                    }
-                    $input = json_decode(file_get_contents('php://input'), true);
-                    $toan = $input['toan'] ?? null;
-                    $van = $input['van'] ?? null;
-                    // ... các môn khác
-                    
-                    $sql = "UPDATE diem SET toan = ?, van = ?, anh = ?, ly = ?, hoa = ?, sinh = ?, su = ?, dia = ?, gdcd = ?, cn = ? WHERE id = ?";
-                    $stmt = $conn->prepare($sql);
-                    $stmt->bind_param("ddddddddddi", $toan, $van, $input['anh'], $input['ly'], $input['hoa'], $input['sinh'], $input['su'], $input['dia'], $input['gdcd'], $input['cn'], $id);
-                    
-                    if ($stmt->execute()) {
-                        sendResponse(200, 'Cập nhật điểm thành công');
-                    } else {
-                        sendResponse(500, 'Lỗi khi cập nhật điểm', ['error' => $stmt->error]);
-                    }
-                    $stmt->close();
-                    break;
-                case 'DELETE':
-                    if (!$id) {
-                        sendResponse(400, 'Thiếu ID điểm');
-                    }
-                    $stmt = $conn->prepare("DELETE FROM diem WHERE id = ?");
-                    $stmt->bind_param("i", $id);
-                    if ($stmt->execute()) {
-                        sendResponse(200, 'Xóa điểm thành công');
-                    } else {
-                        sendResponse(500, 'Lỗi khi xóa điểm', ['error' => $stmt->error]);
-                    }
-                    $stmt->close();
-                    break;
-                default:
-                    sendResponse(405, 'Phương thức không được phép');
+            case 'POST':
+                $input = json_decode(file_get_contents('php://input'), true);
+                if (!isset($input['id_hocsinh']) || !isset($input['namhoc']) || !isset($input['hocky'])) {
+                    sendResponse(400, 'Thiếu thông tin id_hocsinh, namhoc hoặc hocky');
+                }
+                $id_hocsinh = (int)$input['id_hocsinh'];
+                $namhoc = $input['namhoc'];
+                $hocky = (int)$input['hocky'];
+                $toan = isset($input['toan']) ? floatval($input['toan']) : null;
+                $van = isset($input['van']) ? floatval($input['van']) : null;
+                $anh = isset($input['anh']) ? floatval($input['anh']) : null;
+                $ly = isset($input['ly']) ? floatval($input['ly']) : null;
+                $hoa = isset($input['hoa']) ? floatval($input['hoa']) : null;
+                $sinh = isset($input['sinh']) ? floatval($input['sinh']) : null;
+                $su = isset($input['su']) ? floatval($input['su']) : null;
+                $dia = isset($input['dia']) ? floatval($input['dia']) : null;
+                $gdcd = isset($input['gdcd']) ? floatval($input['gdcd']) : null;
+                $cn = isset($input['cn']) ? floatval($input['cn']) : null;
+
+                $sql = "INSERT INTO diem (id_hocsinh, namhoc, hocky, toan, van, anh, ly, hoa, sinh, su, dia, gdcd, cn) 
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+                $stmt = $conn->prepare($sql);
+                $stmt->bind_param("isidddddddddd", $id_hocsinh, $namhoc, $hocky, $toan, $van, $anh, $ly, $hoa, $sinh, $su, $dia, $gdcd, $cn);
+                if ($stmt->execute()) {
+                    sendResponse(201, 'Thêm điểm thành công', ['id' => $conn->insert_id]);
+                } else {
+                    sendResponse(500, 'Lỗi khi thêm điểm', ['error' => $conn->error]);
+                }
+                $stmt->close();
+                break;
+
+            case 'PUT':
+                if (!$id) {
+                    sendResponse(400, 'Thiếu ID điểm');
+                }
+                $input = json_decode(file_get_contents('php://input'), true);
+                $toan = isset($input['toan']) ? floatval($input['toan']) : null;
+                $van = isset($input['van']) ? floatval($input['van']) : null;
+                $anh = isset($input['anh']) ? floatval($input['anh']) : null;
+                $ly = isset($input['ly']) ? floatval($input['ly']) : null;
+                $hoa = isset($input['hoa']) ? floatval($input['hoa']) : null;
+                $sinh = isset($input['sinh']) ? floatval($input['sinh']) : null;
+                $su = isset($input['su']) ? floatval($input['su']) : null;
+                $dia = isset($input['dia']) ? floatval($input['dia']) : null;
+                $gdcd = isset($input['gdcd']) ? floatval($input['gdcd']) : null;
+                $cn = isset($input['cn']) ? floatval($input['cn']) : null;
+
+                $sql = "UPDATE diem SET toan = ?, van = ?, anh = ?, ly = ?, hoa = ?, sinh = ?, su = ?, dia = ?, gdcd = ?, cn = ? WHERE id = ?";
+                $stmt = $conn->prepare($sql);
+                $stmt->bind_param("ddddddddddi", $toan, $van, $anh, $ly, $hoa, $sinh, $su, $dia, $gdcd, $cn, $id);
+                if ($stmt->execute()) {
+                    sendResponse(200, 'Cập nhật điểm thành công');
+                } else {
+                    sendResponse(500, 'Lỗi khi cập nhật điểm', ['error' => $conn->error]);
+                }
+                $stmt->close();
+                break;
+
+            case 'DELETE':
+                if (!$id) {
+                    sendResponse(400, 'Thiếu ID điểm');
+                }
+                $stmt = $conn->prepare("DELETE FROM diem WHERE id = ?");
+                $stmt->bind_param("i", $id);
+                if ($stmt->execute()) {
+                    sendResponse(200, 'Xóa điểm thành công');
+                } else {
+                    sendResponse(500, 'Lỗi khi xóa điểm', ['error' => $conn->error]);
+                }
+                $stmt->close();
+                break;
+
+            default:
+                sendResponse(405, 'Phương thức không được phép');
+        }
+        break;
+
+    case 'grades':
+        if (count($resource) === 4) {
+            $student_id = (int)$resource[1];
+            $school_year = $resource[2];
+            $semester = (int)$resource[3];
+
+            // Validate parameters
+            if (!preg_match('/^\d{4}$/', $school_year) || !in_array($semester, [1, 2])) {
+                sendResponse(400, 'Năm học hoặc học kỳ không hợp lệ');
             }
+
+            $sql = "SELECT h.id, h.ten AS name, h.lop AS class, h.ngaysinh AS birthdate, h.gioitinh AS gender,
+                           d.namhoc AS school_year, d.hocky AS semester, 
+                           d.toan AS math, d.van AS literature, d.anh AS english, d.ly AS physics,
+                           d.hoa AS chemistry, d.sinh AS biology, d.su AS history, d.dia AS geography,
+                           d.gdcd AS civic_education, d.cn AS technology
+                    FROM hocsinh h
+                    LEFT JOIN diem d ON h.id = d.id_hocsinh AND d.namhoc = ? AND d.hocky = ?
+                    WHERE h.id = ?";
+            $stmt = $conn->prepare($sql);
+            $stmt->bind_param("sii", $school_year, $semester, $student_id);
+            $stmt->execute();
+            $result = $stmt->get_result();
+            $data = $result->fetch_assoc();
+            $stmt->close();
+
+            if ($data) {
+                $response = [
+                    'student' => [
+                        'id' => $data['id'],
+                        'name' => $data['name'],
+                        'class' => $data['class'],
+                        'birthdate' => $data['birthdate'],
+                        'gender' => $data['gender']
+                    ],
+                    'grades' => [
+                        'school_year' => $data['school_year'],
+                        'semester' => $data['semester'],
+                        'scores' => [
+                            'math' => $data['math'],
+                            'literature' => $data['literature'],
+                            'english' => $data['english'],
+                            'physics' => $data['physics'],
+                            'chemistry' => $data['chemistry'],
+                            'biology' => $data['biology'],
+                            'history' => $data['history'],
+                            'geography' => $data['geography'],
+                            'civic_education' => $data['civic_education'],
+                            'technology' => $data['technology']
+                        ]
+                    ]
+                ];
+                sendResponse(200, 'Lấy điểm thành công', $response);
+            } else {
+                sendResponse(404, 'Không tìm thấy điểm cho học sinh này');
+            }
+        } else {
+            sendResponse(400, 'Định dạng endpoint không hợp lệ');
         }
         break;
 
     default:
         sendResponse(404, 'Endpoint không tồn tại');
         break;
-
-    case 'grades':
-    if (count($resource) === 4) {
-        $student_id = (int)$resource[1];
-        $school_year = $resource[2];
-        $semester = (int)$resource[3];
-
-        // Validate parameters
-        if (!preg_match('/^\d{4}-\d{4}$/', $school_year) || !in_array($semester, [1, 2])) {
-            sendResponse(400, 'Invalid school_year or semester');
-        }
-
-        // Query to get student and grades
-        $sql = "SELECT h.id, h.ten as name, h.lop as class, h.ngaysinh as birthdate, h.gioitinh as gender,
-                       d.namhoc as school_year, d.hocky as semester, 
-                       d.toan as math, d.van as literature, d.anh as english, d.ly as physics,
-                       d.hoa as chemistry, d.sinh as biology, d.su as history, d.dia as geography,
-                       d.gdcd as civic_education, d.cn as technology
-                FROM hocsinh h
-                LEFT JOIN diem d ON h.id = d.id_hocsinh
-                WHERE h.id = ? AND d.namhoc = ? AND d.hocky = ?";
-        $stmt = $conn->prepare($sql);
-        $stmt->bind_param("isi", $student_id, $school_year, $semester);
-        $stmt->execute();
-        $result = $stmt->get_result();
-        $data = $result->fetch_assoc();
-        $stmt->close();
-
-        if ($data) {
-            $response = [
-                'student' => [
-                    'id' => $data['id'],
-                    'name' => $data['name'],
-                    'class' => $data['class'],
-                    'birthdate' => $data['birthdate'],
-                    'gender' => $data['gender']
-                ],
-                'grades' => [
-                    'school_year' => $data['school_year'],
-                    'semester' => $data['semester'],
-                    'scores' => [
-                        'math' => $data['math'],
-                        'literature' => $data['literature'],
-                        'english' => $data['english'],
-                        'physics' => $data['physics'],
-                        'chemistry' => $data['chemistry'],
-                        'biology' => $data['biology'],
-                        'history' => $data['history'],
-                        'geography' => $data['geography'],
-                        'civic_education' => $data['civic_education'],
-                        'technology' => $data['technology']
-                    ]
-                ]
-            ];
-            sendResponse(200, 'Success', $response);
-        } else {
-            sendResponse(404, 'No grades found for this student');
-        }
-    } else {
-        sendResponse(400, 'Invalid endpoint format');
-    }
-    break;
 }
 
 $conn->close();
