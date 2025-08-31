@@ -217,6 +217,67 @@ switch ($resource[0] ?? '') {
         sendResponse(404, 'Endpoint không tồn tại');
         break;
 }
+    case 'grades':
+    if (count($resource) === 4) {
+        $student_id = (int)$resource[1];
+        $school_year = $resource[2];
+        $semester = (int)$resource[3];
+
+        // Validate parameters
+        if (!preg_match('/^\d{4}-\d{4}$/', $school_year) || !in_array($semester, [1, 2])) {
+            sendResponse(400, 'Invalid school_year or semester');
+        }
+
+        // Query to get student and grades
+        $sql = "SELECT h.id, h.ten as name, h.lop as class, h.ngaysinh as birthdate, h.gioitinh as gender,
+                       d.namhoc as school_year, d.hocky as semester, 
+                       d.toan as math, d.van as literature, d.anh as english, d.ly as physics,
+                       d.hoa as chemistry, d.sinh as biology, d.su as history, d.dia as geography,
+                       d.gdcd as civic_education, d.cn as technology
+                FROM hocsinh h
+                LEFT JOIN diem d ON h.id = d.id_hocsinh
+                WHERE h.id = ? AND d.namhoc = ? AND d.hocky = ?";
+        $stmt = $conn->prepare($sql);
+        $stmt->bind_param("isi", $student_id, $school_year, $semester);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        $data = $result->fetch_assoc();
+        $stmt->close();
+
+        if ($data) {
+            $response = [
+                'student' => [
+                    'id' => $data['id'],
+                    'name' => $data['name'],
+                    'class' => $data['class'],
+                    'birthdate' => $data['birthdate'],
+                    'gender' => $data['gender']
+                ],
+                'grades' => [
+                    'school_year' => $data['school_year'],
+                    'semester' => $data['semester'],
+                    'scores' => [
+                        'math' => $data['math'],
+                        'literature' => $data['literature'],
+                        'english' => $data['english'],
+                        'physics' => $data['physics'],
+                        'chemistry' => $data['chemistry'],
+                        'biology' => $data['biology'],
+                        'history' => $data['history'],
+                        'geography' => $data['geography'],
+                        'civic_education' => $data['civic_education'],
+                        'technology' => $data['technology']
+                    ]
+                ]
+            ];
+            sendResponse(200, 'Success', $response);
+        } else {
+            sendResponse(404, 'No grades found for this student');
+        }
+    } else {
+        sendResponse(400, 'Invalid endpoint format');
+    }
+    break;
 
 $conn->close();
 ?>
