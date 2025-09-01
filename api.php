@@ -10,11 +10,14 @@ include 'db.php';
 // Thiết lập tiêu đề để trả về JSON
 header('Content-Type: application/json');
 
-// Lấy phương thức HTTP và các phần của URI
+// Lấy phương thức HTTP
 $method = $_SERVER['REQUEST_METHOD'];
-$requestUri = explode('/', trim($_SERVER['REQUEST_URI'], '/'));
-$scriptName = explode('/', trim($_SERVER['SCRIPT_NAME'], '/'));
-$resource = array_values(array_diff($requestUri, $scriptName));
+
+// Lấy URL từ rewrite (từ .htaccess)
+$url = isset($_GET['url']) ? $_GET['url'] : '';
+
+// Phân tách URL thành các phần
+$resource = explode('/', trim($url, '/'));
 
 // Hàm để trả về phản hồi JSON
 function sendResponse($status, $message, $data = null) {
@@ -228,12 +231,11 @@ switch ($resource[0] ?? '') {
         break;
 
     case 'grades':
-        if (count($resource) === 4) {
+        if (count($resource) >= 4) {
             $student_id = (int)$resource[1];
             $school_year = $resource[2];
             $semester = (int)$resource[3];
 
-            // Validate parameters
             if (!preg_match('/^\d{4}$/', $school_year) || !in_array($semester, [1, 2])) {
                 sendResponse(400, 'Năm học hoặc học kỳ không hợp lệ');
             }
@@ -263,19 +265,19 @@ switch ($resource[0] ?? '') {
                         'gender' => $data['gender']
                     ],
                     'grades' => [
-                        'school_year' => $data['school_year'],
-                        'semester' => $data['semester'],
+                        'school_year' => $data['school_year'] ?: $school_year,
+                        'semester' => $data['semester'] ?: $semester,
                         'scores' => [
-                            'math' => $data['math'],
-                            'literature' => $data['literature'],
-                            'english' => $data['english'],
-                            'physics' => $data['physics'],
-                            'chemistry' => $data['chemistry'],
-                            'biology' => $data['biology'],
-                            'history' => $data['history'],
-                            'geography' => $data['geography'],
-                            'civic_education' => $data['civic_education'],
-                            'technology' => $data['technology']
+                            'math' => $data['math'] ?? null,
+                            'literature' => $data['literature'] ?? null,
+                            'english' => $data['english'] ?? null,
+                            'physics' => $data['physics'] ?? null,
+                            'chemistry' => $data['chemistry'] ?? null,
+                            'biology' => $data['biology'] ?? null,
+                            'history' => $data['history'] ?? null,
+                            'geography' => $data['geography'] ?? null,
+                            'civic_education' => $data['civic_education'] ?? null,
+                            'technology' => $data['technology'] ?? null
                         ]
                     ]
                 ];
@@ -290,7 +292,6 @@ switch ($resource[0] ?? '') {
 
     default:
         sendResponse(404, 'Endpoint không tồn tại');
-        break;
 }
 
 $conn->close();
